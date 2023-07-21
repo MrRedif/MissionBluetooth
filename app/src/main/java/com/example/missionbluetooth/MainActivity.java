@@ -10,6 +10,8 @@ import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCallback;
+import android.bluetooth.BluetoothGattCharacteristic;
+import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.BluetoothProfile;
@@ -23,7 +25,9 @@ import android.view.View;
 import android.widget.AdapterView;
 import android.widget.Button;
 import android.widget.ListView;
+import android.widget.TextView;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -33,11 +37,14 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     BluetoothAdapter mBlueToothAdapter;
     Button buttonBluetooth;
     Button buttonDiscover;
+
+    TextView textDataView;
     public ArrayList<BluetoothDevice> bluetoothDevices = new ArrayList<>();
     DeviceListAdapter deviceListAdapter;
     ListView lvNewDevices;
     BluetoothDevice bondedDevice;
 
+    byte[] packet = new byte[0];
 
     private final BluetoothGattCallback gattCallback = new BluetoothGattCallback() {
         @SuppressLint("MissingPermission")
@@ -59,13 +66,71 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
                 List<BluetoothGattService> services = gatt.getServices();
                 for (BluetoothGattService service : services) {
                     Log.d(TAG,"Service Found: " + service.getUuid().toString());
+                    if (service.getUuid().equals(UUID.fromString("0000fff0-0000-1000-8000-00805f9b34fb"))){
+                        listenToService(gatt, service);
+                    }
                 }
             } else {
                 // Service discovery failed
             }
         }
+        @Override
+        public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
+            byte[] data = characteristic.getValue();
+
+            if (data.length == 0) return;
+
+            //Add to packet stream
+            byte[] result = new byte[packet.length + data.length];
+            System.arraycopy(packet, 0, result, 0, packet.length);
+            System.arraycopy(data, 0, result, packet.length, data.length);
+            packet = result;
+
+            //Procces if end flag
+            if (data.length >= 2 && data[data.length - 1] == 0x0A && data[data.length - 2] == 0x0D)//Packet end
+            {
+                proccesPacket();
+                packet = new byte[0];
+            }
+        }
 
     };
+
+    void proccesPacket(){
+        String sentence = new String(packet, StandardCharsets.US_ASCII);
+        if (sentence.startsWith("$GPGGA") || sentence.startsWith("$GNRMC")){
+            String[] gpggaPacket = sentence.split(",");
+            String parsedPackage =
+                    "Time: " + gpggaPacket[1] +
+                    "\nLat: " + formatStringPersicion(gpggaPacket[2])  + " " + gpggaPacket[3] +
+                    "\nLong: " + formatStringPersicion(gpggaPacket[4].substring(1)) + " " + gpggaPacket[5] +
+                    "\nQuality: " + gpggaPacket[6];
+
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    // Update UI or perform other tasks on the main thread
+                    textDataView.setText((parsedPackage));
+                }
+            });
+        }
+
+        //Battery Info
+        if (packet.length == 6 && packet[0] == 0x05){
+            String batteryPacked = String.format("%8s", Integer.toBinaryString(packet[1] & 0xFF)).replace(' ', '0');
+            char flag = batteryPacked.charAt(batteryPacked.length()-1);
+            String battery = "0" + batteryPacked.substring(0,batteryPacked.length()-2);
+            int chargePercentage =  Integer.parseInt(battery,2);
+
+            Log.d(TAG, "Battery: " + chargePercentage + " Charge Status: " + flag);
+        }
+    }
+
+    public static String formatStringPersicion(String inputString) {
+        String replaced = (inputString.replace(".", ""));
+        String formattedString = replaced.substring(0, 2) + "." + replaced.substring(2);
+        return formattedString;
+    }
 
     private final BroadcastReceiver recieverStateChange = new BroadcastReceiver() {
         public void onReceive(Context context, Intent intent) {
@@ -156,7 +221,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
         buttonBluetooth = (Button) findViewById(R.id.btnOnOff);
         buttonDiscover = (Button) findViewById(R.id.btnDiscover);
         lvNewDevices = (ListView) findViewById(R.id.lvNewDevices);
-
+        textDataView = findViewById(R.id.textData);
 
         IntentFilter filter = new IntentFilter(BluetoothDevice.ACTION_BOND_STATE_CHANGED);
         registerReceiver(recieverBond, filter);
@@ -179,7 +244,6 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
 
         lvNewDevices.setOnItemClickListener(MainActivity.this);
-
 
     }
 
@@ -249,5 +313,37 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
             return false;
         }
         return true;
+    }
+
+    @SuppressLint("MissingPermission")
+    private void listenToService(BluetoothGatt gatt, BluetoothGattService service) {
+        UUID targetCharacteristicUUID = UUID.fromString("0000fff1-0000-1000-8000-00805f9b34fb");
+        BluetoothGattCharacteristic targetCharacteristic = service.getCharacteristic(targetCharacteristicUUID);
+
+        if (targetCharacteristic != null) {
+            boolean enableNotification = true;
+
+            gatt.setCharacteristicNotification(targetCharacteristic, enableNotification);
+            BluetoothGattDescriptor descriptor = targetCharacteristic.getDescriptor(
+                    UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")); // Client Characteristic Configuration descriptor UUID
+
+            if (descriptor != null) {
+                descriptor.setValue(enableNotification ? BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE :
+                        BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE);
+
+                gatt.writeDescriptor(descriptor);
+            }
+        } else {
+            // Target characteristic not found, handle the situation if needed
+        }
+    }
+
+    public static String bytesToHexString(byte[] bytes) {
+        StringBuilder sb = new StringBuilder();
+        for (byte b : bytes) {
+            sb.append(String.format("%02X", b));
+            sb.append(" ");
+        }
+        return sb.toString();
     }
 }

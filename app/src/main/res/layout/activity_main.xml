@@ -13,10 +13,10 @@
         android:text="SCAN FOR DEVICES"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.497"
+        app:layout_constraintHorizontal_bias="0.103"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_bias="0.079" />
+        app:layout_constraintVertical_bias="0.061" />
 
     <Button
         android:id="@+id/btnOnOff"
@@ -25,17 +25,36 @@
         android:text="ON/OFF"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.903"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/btnDiscover"
-        app:layout_constraintVertical_bias="0.037" />
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.061" />
 
     <ListView
         android:id="@+id/lvNewDevices"
-        android:layout_width="356dp"
-        android:layout_height="494dp"
+        android:layout_width="358dp"
+        android:layout_height="269dp"
+        android:layout_marginBottom="32dp"
         android:background="#E1FFF7"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.49"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <TextView
+        android:id="@+id/textData"
+        android:layout_width="338dp"
+        android:layout_height="230dp"
+        android:layout_marginTop="21dp"
+        android:layout_marginBottom="8dp"
+        android:text="gpss data header"
+        android:textAlignment="viewStart"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        app:layout_constraintBottom_toTopOf="@+id/lvNewDevices"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/btnOnOff" />
+        app:layout_constraintTop_toBottomOf="@+id/btnDiscover"
+        app:layout_constraintVertical_bias="0.666" />
+
 </androidx.constraintlayout.widget.ConstraintLayout>
